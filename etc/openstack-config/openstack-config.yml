@@ -46,8 +46,387 @@
 ###############################################################################
 # Configuration of Glance software images.
 
+os_images_package_dependencies_extra:
+  # debootstrap is required to build ubuntu-minimal images.
+  - debootstrap
+
+# Drop cloud-init and stable-interface-names from default elements.
+os_images_common: enable-serial-console
+
+# Set this to true to force rebuilding images.
+os_images_force_rebuild: false
+
 # List of Glance images. Format is as required by the stackhpc.os-images role.
-# openstack_images:
+openstack_images:
+  - "{{ openstack_image_rocky_96_doca_ofed_350 }}"
+
+# Common GRUB settings for VM images
+openstack_grub_env_common:
+  DIB_GRUB_TIMEOUT: 0
+  DIB_GRUB_TIMEOUT_STYLE: hidden
+
+# CentOS Stream 8.
+openstack_image_centos_stream8:
+  name: "CentOS-stream8"
+  type: raw
+  elements:
+    # Required for UEFI mode:
+    - "block-device-efi"
+    - "centos"
+    - "cloud-init"
+    - "selinux-permissive"
+    - "dhcp-all-interfaces"
+    - "vm"
+    - "grub2"
+    - "stable-interface-names"
+  is_public: true
+  env:
+    YUM: dnf
+    DIB_RELEASE: "8-stream"
+  packages:
+    # Next 3 are required for UEFI mode:
+    - "gdisk"
+    - "efibootmgr"
+    - "efivar"
+  properties:
+    os_type: "linux"
+    os_distro: "centos"
+    os_version: "8-stream"
+    hw_rng_model: "virtio"
+
+# Cirros 0.6.0
+openstack_image_cirros_0_6_0:
+  name: "cirros-0.6.0"
+  type: qcow2
+  image_url: "https://github.com/cirros-dev/cirros/releases/download/0.6.0/cirros-0.6.0-x86_64-disk.img"
+  checksum: "md5:f4027b89e99e238184e13089a3155b74"
+  is_public: true
+  properties:
+    os_type: "linux"
+    os_distro: "cirros"
+    os_version: "0.6.0"
+    hw_rng_model: "virtio"
+
+# Rocky Linux 9.
+openstack_image_rocky9:
+  name: "Rocky9"
+  type: raw
+  elements:
+    # Required for UEFI mode:
+    - "block-device-efi"
+    - "rocky-container"
+    - "cloud-init"
+    - "epel"
+    - "selinux-permissive"
+    - "dhcp-all-interfaces"
+    - "vm"
+    - "grub2"
+    - "stable-interface-names"
+    - "openssh-server"
+  is_public: true
+  packages:
+    - "bash-completion"
+    - "vim-enhanced"
+    # Next 3 are required for UEFI mode:
+    - "gdisk"
+    - "efibootmgr"
+    - "efivar"
+  env:
+    YUM: dnf
+    DIB_CONTAINERFILE_RUNTIME: docker
+    DIB_CONTAINERFILE_RUNTIME_ROOT: 1
+    DIB_RELEASE: "9"
+  properties:
+    os_type: "linux"
+    os_distro: "rocky"
+    os_version: "9"
+    hw_rng_model: "virtio"
+
+# Ubuntu Jammy 22.04.
+openstack_image_ubuntu_jammy:
+  name: "Ubuntu-22.04"
+  type: raw
+  is_public: true
+  elements:
+    # Required for UEFI mode:
+    - "block-device-efi"
+    - "cloud-init"
+    - "cloud-init-datasources"
+    - "dhcp-all-interfaces"
+    - "grub2"
+    - "openssh-server"
+    - "ubuntu-minimal"
+    - "vm"
+  packages:
+    - bash-completion
+    - debootstrap
+    - vim
+  properties:
+    os_type: "linux"
+    os_distro: "ubuntu"
+    os_version: "jammy"
+    hw_rng_model: "virtio"
+  env:
+    DIB_RELEASE: "jammy"
+    DIB_CLOUD_INIT_DATASOURCES: "ConfigDrive"
+
+# Rocky Linux 9 with Doca Ofed enabled.
+openstack_image_rocky9_doca_ofed:
+  name: "Rocky9-doca-ofed"
+  type: raw
+  elements:
+    - "rocky-container"
+    - "cloud-init"
+    - "cloud-init-datasources"
+    - "enable-serial-console"
+    - "block-device-efi"
+    - "vm"
+    - "openssh-server"
+    - "dracut-regenerate"
+  visibility: "public"
+  packages:
+    - "git"
+    - "tmux"
+    - "vim-enhanced"
+    - "lshw"
+    - "pciutils"
+    - "infiniband-diags"
+    - "ethtool"
+    - "less"
+    - "logrotate"
+    - "net-tools"
+    - "nvme-cli"
+    - "python3"
+    - "smartmontools"
+    - "NetworkManager-config-server"
+    - "linux-firmware"
+    - "cloud-utils-growpart"
+  env:
+    DIB_AVOID_PACKAGES_UPDATE: 1
+    DIB_BLOCK_DEVICE_CONFIG: "{{ stackhpc_dib_block_device_config_uefi_lvm }}"
+    DIB_DRACUT_ENABLED_MODULES_DEFAULT_CONFIG: "{{ stackhpc_dib_dracut_enabled_modules_default_config }}"
+    DIB_BOOTLOADER_DEFAULT_CMDLINE: "nofb nomodeset gfxpayload=text net.ifnames=1 rd.auto"
+    DIB_GRUB_TIMEOUT: "5"
+    DIB_GRUB_TIMEOUT_STYLE: "menu"
+    DIB_CONTAINERFILE_DOCKERFILE: "{{ playbook_dir }}/../containerfiles/rocky-latest-doca-ofed"
+    DIB_CONTAINERFILE_NETWORK_DRIVER: host
+    DIB_CONTAINERFILE_RUNTIME: docker
+    YUM: dnf
+    DIB_CLOUD_INIT_DATASOURCES: "OpenStack, ConfigDrive"
+    DIB_RELEASE: "9.8"
+    # Workaround for stack user home ownership bug
+    DIB_IMAGE_CACHE: "/tmp/yum"
+    DIB_SUDOERS_FILENAME: "no-fqdn"
+    # Avoid DNS queries during sudo commands, since we might not always have working DNS.
+    DIB_SUDOERS_CONFIG: |
+      Defaults  !fqdn
+
+
+# Rocky Linux 9.6 with DOCA OFED 3.5.0 enabled.
+openstack_image_rocky_96_doca_ofed_350:
+  name: "Rocky-9.6-DOCA-OFED-3.5.0"
+  type: "qcow2"
+  elements:
+    - "rocky-container"
+    - "cloud-init"
+    - "cloud-init-datasources"
+    - "block-device-efi"
+    - "vm"
+    - "openssh-server"
+    - "dracut-regenerate"
+  visibility: "public"
+  packages:
+    - "git"
+    - "tmux"
+    - "vim-enhanced"
+    - "lshw"
+    - "pciutils"
+    - "infiniband-diags"
+    - "ethtool"
+    - "less"
+    - "logrotate"
+    - "net-tools"
+    - "nvme-cli"
+    - "python3"
+    - "smartmontools"
+    - "NetworkManager-config-server"
+    - "linux-firmware"
+    - "cloud-utils-growpart"
+  env:
+    DIB_AVOID_PACKAGES_UPDATE: 1
+    DIB_BLOCK_DEVICE_CONFIG: "{{ stackhpc_dib_block_device_config_uefi_lvm }}"
+    DIB_DRACUT_ENABLED_MODULES_DEFAULT_CONFIG: "{{ stackhpc_dib_dracut_enabled_modules_default_config }}"
+    DIB_BOOTLOADER_DEFAULT_CMDLINE: "nofb nomodeset gfxpayload=text net.ifnames=1 rd.auto"
+    DIB_GRUB_TIMEOUT: "5"
+    DIB_GRUB_TIMEOUT_STYLE: "menu"
+    DIB_CONTAINERFILE_DOCKERFILE: "{{ playbook_dir }}/../containerfiles/rocky-9.6-doca-ofed-3.5.0"
+    DIB_CONTAINERFILE_NETWORK_DRIVER: host
+    DIB_CONTAINERFILE_RUNTIME: docker
+    YUM: dnf
+    DIB_CLOUD_INIT_DATASOURCES: "OpenStack, ConfigDrive"
+    DIB_RELEASE: "9.6"
+    # Workaround for stack user home ownership bug
+    DIB_IMAGE_CACHE: "/tmp/yum"
+    DIB_SUDOERS_FILENAME: "no-fqdn"
+    # Avoid DNS queries during sudo commands, since we might not always have working DNS.
+    DIB_SUDOERS_CONFIG: |
+      Defaults  !fqdn
+
+# StackHPC overcloud DIB image block device configuration.
+# This image layout conforms to the CIS partition benchmarks.
+# This configuration builds a UEFI-compatible image with 3 partitions.
+# * p0: EFI ESP bootloader
+# * p1: EFI BSP
+# * p2: LVM PV (rootpv)
+# The rootpv PV is in the rootvg VG, and has the following LVs:
+# * lv_root -> /
+# * lv_tmp -> /tmp
+# * lv_var -> /var
+# * lv_var_tmp -> /var/tmp
+# * lv_log -> /var/log
+# * lv_audit -> /var/log/audit
+# * lv_home -> /home
+
+stackhpc_dib_block_device_config_uefi_lvm: |
+  - local_loop:
+      name: image0
+      size: 20GiB
+  - partitioning:
+      base: image0
+      label: gpt
+      partitions:
+        - name: ESP
+          type: 'EF00'
+          size: 500MiB
+          mkfs:
+            type: vfat
+            mount:
+              mount_point: /boot/efi
+              fstab:
+                options: "defaults"
+                fsck-passno: 2
+        - name: BSP
+          type: 'EF02'
+          size: 8MiB
+        - name: root
+          type: '8E00'
+          flags: [ boot ]
+          size: 100%
+  - lvm:
+      name: lvm
+      base: [ root ]
+      pvs:
+        - name: rootpv
+          base: root
+          options: [ "--force" ]
+      vgs:
+        - name: rootvg
+          base: [ "rootpv" ]
+          options: [ "--force" ]
+      lvs:
+        - name: lv_root
+          base: rootvg
+          size: 5G
+        - name: lv_tmp
+          base: rootvg
+          size: 1G
+        - name: lv_var
+          base: rootvg
+          size: 1G
+        - name: lv_var_tmp
+          base: rootvg
+          size: 1G
+        - name: lv_log
+          base: rootvg
+          size: 1G
+        - name: lv_audit
+          base: rootvg
+          size: 128M
+        - name: lv_home
+          base: rootvg
+          size: 128M
+  - mkfs:
+      name: fs_root
+      base: lv_root
+      type: ext4
+      label: "rootfs"
+      mount:
+        mount_point: /
+        fstab:
+          options: "defaults"
+          fsck-passno: 1
+  - mkfs:
+      name: fs_tmp
+      base: lv_tmp
+      type: ext4
+      label: "tmpfs"
+      mount:
+        mount_point: /tmp
+        fstab:
+          options: "rw,noexec,nosuid,nodev"
+          fsck-passno: 2
+  - mkfs:
+      name: fs_var
+      base: lv_var
+      type: ext4
+      label: "varfs"
+      mount:
+        mount_point: /var
+        fstab:
+          options: "defaults"
+          fsck-passno: 2
+  - mkfs:
+      name: fs_var_tmp
+      base: lv_var_tmp
+      type: ext4
+      label: "vartmpfs"
+      mount:
+        mount_point: /var/tmp
+        fstab:
+          options: "rw,noexec,nosuid,nodev"
+          fsck-passno: 2
+  - mkfs:
+      name: fs_log
+      base: lv_log
+      type: ext4
+      label: "logfs"
+      mount:
+        mount_point: /var/log
+        fstab:
+          options: "defaults"
+          fsck-passno: 2
+  - mkfs:
+      name: fs_audit
+      base: lv_audit
+      type: ext4
+      label: "auditfs"
+      mount:
+        mount_point: /var/log/audit
+        fstab:
+          options: "defaults"
+          fsck-passno: 2
+  - mkfs:
+      name: fs_home
+      base: lv_home
+      type: ext4
+      label: "homefs"
+      mount:
+        mount_point: /home
+        fstab:
+          options: "rw,nodev"
+          fsck-passno: 2
+
+# StackHPC overcloud DIB image Dracut module configuration.
+stackhpc_dib_dracut_enabled_modules_default_config: |
+  - name: crypt
+    packages:
+      - cryptsetup
+  - name: lvm
+    packages:
+      - lvm2
+  - name: mdraid
+    packages:
+      - mdraid
 
 # List of Diskimage Builder (DIB) elements paths to include in image builds.
 # openstack_image_elements:
