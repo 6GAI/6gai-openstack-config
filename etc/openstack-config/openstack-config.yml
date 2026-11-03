@@ -234,7 +234,7 @@ openstack_image_rocky_96_doca_ofed_350:
     - "vm"
     - "openssh-server"
     - "dracut-regenerate"
-  visibility: "private"
+  visibility: "public"
   packages:
     - "git"
     - "tmux"
